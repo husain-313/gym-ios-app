@@ -15,6 +15,10 @@ func createWebView(container: UIView, WKSMH: WKScriptMessageHandler, WKND: WKNav
     userContentController.add(WKSMH, name: "push-permission-state")
     userContentController.add(WKSMH, name: "push-token")
 
+    // Keep the page locked to the screen width and block pinch zoom
+    let lockViewport = "var m=document.querySelector('meta[name=viewport]');if(m){m.setAttribute('content','width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover')}"
+    userContentController.addUserScript(WKUserScript(source: lockViewport, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+
     config.userContentController = userContentController
 
     config.limitsNavigationsToAppBoundDomains = true;
@@ -31,6 +35,14 @@ func createWebView(container: UIView, WKSMH: WKScriptMessageHandler, WKND: WKNav
     webView.scrollView.bounces = false
     webView.scrollView.contentInsetAdjustmentBehavior = .never
     webView.allowsBackForwardNavigationGestures = true
+
+    // No sideways scrolling and no pinch zoom
+    webView.scrollView.isDirectionalLockEnabled = true
+    webView.scrollView.alwaysBounceHorizontal = false
+    webView.scrollView.showsHorizontalScrollIndicator = false
+    webView.scrollView.minimumZoomScale = 1.0
+    webView.scrollView.maximumZoomScale = 1.0
+    webView.scrollView.pinchGestureRecognizer?.isEnabled = false
     
     // Check if macCatalyst 16.4+ is available and if so, enable web inspector.
     // This allows the web app to be inspected using Safari Web Inspector. Supported on iOS 16.4+ and macOS 13.3+
