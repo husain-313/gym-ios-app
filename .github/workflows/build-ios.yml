@@ -13,21 +13,38 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up CocoaPods & Build
+    - name: Locate Project and Setup CocoaPods
       run: |
-        cd src
-        pod install
-        xcodebuild -workspace Gym.xcworkspace -scheme Gym -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        # البحث التلقائي عن مكان ملف Podfile وبناء المشروع في نفس المجلد
+        if [ -f "Podfile" ]; then
+          pod install
+          WORKSPACE_NAME=$(ls *.xcworkspace | head -n 1)
+          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
+          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        elif [ -f "src/Podfile" ]; then
+          cd src
+          pod install
+          WORKSPACE_NAME=$(ls *.xcworkspace | head -n 1)
+          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
+          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        else
+          echo "Podfile not found!"
+          exit 1
+        fi
 
     - name: Export IPA for Sideloading
       run: |
-        cd src
+        if [ -d "src" ] && [ -d "src/build" ]; then
+          cd src
+        fi
         mkdir -p Payload
-        mv build/Gym.xcarchive/Products/Applications/Gym.app Payload/
+        mv build/Gym.xcarchive/Products/Applications/*.app Payload/
         zip -r GymApp.ipa Payload/
 
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
       with:
         name: GymApp-IPA
-        path: src/GymApp.ipa
+        path: |
+          GymApp.ipa
+          src/GymApp.ipa
