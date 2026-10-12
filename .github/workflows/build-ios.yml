@@ -1,36 +1,52 @@
 name: Build iOS App
-
 on:
   push:
-    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build iOS App and Generate IPA
     runs-on: macos-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Run Pod Install and Build
-      run: |
-        # الانتقال المباشر للمجلد الذي يحتوي على ملف Podfile
-        pod install
-        
-        WORKSPACE_NAME=$(ls -d *.xcworkspace | head -n 1)
-        SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
-        
-        xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Locate project
+        id: loc
+        run: |
+          PROJ=$(find . -name "*.xcodeproj" -not -path "*/Pods/*" -not -path "./.git/*" | head -1)
+          if [ -z "$PROJ" ]; then
+            echo "No .xcodeproj found. Repo files:"
+            find . -maxdepth 3 -not -path "./.git/*"
+            exit 1
+          fi
+          DIR=$(dirname "$PROJ"); NAME=$(basename "$PROJ" .xcodeproj)
+          echo "dir=$DIR" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          if [ ! -f "$DIR/Podfile" ]; then
+            P=$(find . -name Podfile -not -path "*/Pods/*" | head -1)
+            [ -n "$P" ] && cp "$P" "$DIR/Podfile"
+          fi
+          echo "Project dir: $DIR"; ls "$DIR"
 
-    - name: Export IPA for Sideloading
-      run: |
-        mkdir -p Payload
-        mv build/Gym.xcarchive/Products/Applications/*.app Payload/
-        zip -r GymApp.ipa Payload/
+      - name: Pod install
+        working-directory: ${{ steps.loc.outputs.dir }}
+        run: |
+          if [ -f Podfile ]; then pod install; fi
 
-    - name: Upload IPA Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: GymApp-IPA
-        path: GymApp.ipa
+      - name: Build unsigned IPA
+        working-directory: ${{ steps.loc.outputs.dir }}
+        run: |
+          N="${{ steps.loc.outputs.name }}"
+          if [ -d "$N.xcworkspace" ]; then T="-workspace $N.xcworkspace"; else T="-project $N.xcodeproj"; fi
+          xcodebuild $T -list || true
+          xcodebuild $T -scheme "$N" -configuration Release -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r Gym.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gym-ipa
+          path: ${{ steps.loc.outputs.dir }}/Gym.ipa
