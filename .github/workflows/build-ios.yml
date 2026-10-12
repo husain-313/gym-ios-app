@@ -15,7 +15,6 @@ jobs:
 
     - name: Setup CocoaPods & Fix Project Path
       run: |
-        # البحث عن ملف الـ xcodeproj وتحديد اسم المشروع تلقائياً
         PROJ_FILE=$(find . -name "*.xcodeproj" -maxdepth 2 | head -n 1)
         PROJ_DIR=$(dirname "$PROJ_FILE")
         cd "$PROJ_DIR"
