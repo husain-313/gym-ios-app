@@ -15,11 +15,13 @@ jobs:
 
     - name: Set up CocoaPods & Build
       run: |
+        cd src
         pod install
         xcodebuild -workspace Gym.xcworkspace -scheme Gym -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
     - name: Export IPA for Sideloading
       run: |
+        cd src
         mkdir -p Payload
         mv build/Gym.xcarchive/Products/Applications/Gym.app Payload/
         zip -r GymApp.ipa Payload/
@@ -28,4 +30,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: GymApp-IPA
-        path: GymApp.ipa
+        path: src/GymApp.ipa
