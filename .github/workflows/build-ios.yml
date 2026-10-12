@@ -13,38 +13,36 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Locate Project and Setup CocoaPods
+    - name: Setup CocoaPods & Fix Project Path
       run: |
-        # البحث التلقائي عن مكان ملف Podfile وبناء المشروع في نفس المجلد
-        if [ -f "Podfile" ]; then
-          pod install
-          WORKSPACE_NAME=$(ls *.xcworkspace | head -n 1)
-          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
-          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-        elif [ -f "src/Podfile" ]; then
-          cd src
-          pod install
-          WORKSPACE_NAME=$(ls *.xcworkspace | head -n 1)
-          SCHEME_NAME=$(basename "$WORKSPACE_NAME" .xcworkspace)
-          xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-        else
-          echo "Podfile not found!"
-          exit 1
+        # البحث عن ملف الـ xcodeproj وتحديد اسم المشروع تلقائياً
+        PROJ_FILE=$(find . -name "*.xcodeproj" -maxdepth 2 | head -n 1)
+        PROJ_DIR=$(dirname "$PROJ_FILE")
+        cd "$PROJ_DIR"
+        
+        if [ ! -f "Podfile" ]; then
+          echo "project '$(basename "$PROJ_FILE")'" > Podfile
         fi
+        
+        pod install
+        
+        WORKSPACE_FILE=$(find . -name "*.xcworkspace" -maxdepth 1 | head -n 1)
+        WORKSPACE_NAME=$(basename "$WORKSPACE_FILE")
+        SCHEME_NAME=$(basename "$WORKSPACE_FILE" .xcworkspace)
+        
+        xcodebuild -workspace "$WORKSPACE_NAME" -scheme "$SCHEME_NAME" -sdk iphoneos -configuration Release archive -archivePath $PWD/build/Gym.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
     - name: Export IPA for Sideloading
       run: |
-        if [ -d "src" ] && [ -d "src/build" ]; then
-          cd src
-        fi
+        PROJ_DIR=$(dirname "$(find . -name "*.xcodeproj" -maxdepth 3 | head -n 1)")
+        cd "$PROJ_DIR"
         mkdir -p Payload
         mv build/Gym.xcarchive/Products/Applications/*.app Payload/
         zip -r GymApp.ipa Payload/
+        cp GymApp.ipa ../GymApp.ipa
 
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
       with:
         name: GymApp-IPA
-        path: |
-          GymApp.ipa
-          src/GymApp.ipa
+        path: GymApp.ipa
